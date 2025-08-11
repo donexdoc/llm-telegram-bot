@@ -1,0 +1,29 @@
+name: Local Assistant
+version: 1.0.0
+schema: v1
+models:
+  - name: qwen2.5-coder:14b
+    provider: ollama
+    model: qwen2.5-coder:14b
+    apiBase: http://ollama-gpu.local
+    roles: [chat, edit, apply, autocomplete]
+    requestOptions:
+      extraBodyProperties:
+        options:
+          num_gpu: -1
+    defaultCompletionOptions:
+      temperature: 0.2
+      maxTokens: 10240
+    autocompleteOptions:
+      debounceDelay: 250
+      maxPromptTokens: 512
+      onlyMyCode: true
+
+context:
+  - provider: code
+  - provider: docs
+  - provider: diff
+  - provider: terminal
+  - provider: problems
+  - provider: folder
+  - provider: codebase
