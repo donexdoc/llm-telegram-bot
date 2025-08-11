@@ -9,8 +9,8 @@ datasource db {
 
 model User {
   id         Int      @id @default(autoincrement())
-  telegramId Int      @unique
-  username   String   @unique
+  telegramId String   @unique
+  username   String?  @unique
   isActive   Boolean  @default(false)
   createdAt  DateTime @default(now())
 }
