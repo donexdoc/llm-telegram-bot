@@ -40,4 +40,29 @@ export class UserService {
       },
     })
   }
+
+  // Новый метод для поиска или создания пользователя
+  // реализация от qewn2.5-coder
+  // async findOrCreateUser(telegramId: string, username?: string): Promise<User> {
+  //   const existingUser = await this.prisma.user.findUnique({
+  //     where: { telegramId },
+  //   })
+
+  //   if (existingUser) {
+  //     return existingUser
+  //   }
+
+  //   return this.createUser({ telegramId, username })
+  // }
+
+  // более гибкая реализация с обновлением данных пользователя ( username может меняться )
+  async createOrUpdate(data: CreateUserDto) {
+    return this.prisma.user.upsert({
+      where: {
+        telegramId: data.telegramId,
+      },
+      update: data,
+      create: data,
+    })
+  }
 }
