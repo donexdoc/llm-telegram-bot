@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common'
+import { OllamaService } from 'src/ollama/ollama.service'
 import { UserService } from 'src/user/user.service'
 import { Context } from 'telegraf'
 
 @Injectable()
 export class TelegramService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly ollamaService: OllamaService,
+  ) {}
 
   async start(ctx: Context) {
     if (!ctx.from?.id) {
-      return ctx.reply('Сорян, не могу тебя идентифицировать!')
+      return ctx.reply('Прошу прощения, не могу вас идентифицировать!')
     }
 
     const user = await this.userService.createOrUpdate({
@@ -30,7 +34,7 @@ export class TelegramService {
   // Новый метод для обработки команды /activate
   async activate(ctx: Context, secretWord: string) {
     if (!ctx.from?.id) {
-      return ctx.reply('Сорян, не могу тебя идентифицировать!')
+      return ctx.reply('Прошу прощения, не могу вас идентифицировать!')
     }
 
     const correctSecretWord = process.env.SECRET_WORD
@@ -56,6 +60,35 @@ export class TelegramService {
       return ctx.reply('Аккаунт успешно активирован!')
     } else {
       return ctx.reply('Не удалось активировать аккаунт.')
+    }
+  }
+
+  async processMessage(ctx: Context, text: string) {
+    try {
+      if (!ctx.from?.id) {
+        return ctx.reply('Прошу прощения, не могу вас идентифицировать!')
+      }
+
+      const user = await this.userService.createOrUpdate({
+        telegramId: ctx.from.id.toString(),
+        username: ctx.from.username,
+      })
+
+      if (!user.isActive) {
+        return ctx.reply('Прошу прощения, не могу обработать ваш запрос. Требуется активация аккаунта.')
+      }
+
+      const model = process.env.OLLAMA_MODEL_NAME || ''
+      const userText = text
+
+      // Вызов OllamaService для получения ответа
+      const response = await this.ollamaService.reply(model, userText)
+
+      // Отправка ответного сообщения пользователю
+      await ctx.reply(response, { parse_mode: 'Markdown' })
+    } catch (error) {
+      console.error('Error processing message:', error)
+      await ctx.reply('Прошу прощения, произошла ошибка при обработке вашего запроса.')
     }
   }
 }

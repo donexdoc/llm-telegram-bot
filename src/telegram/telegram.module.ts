@@ -5,6 +5,7 @@ import { TelegrafModule } from 'nestjs-telegraf'
 import { TelegramUpdate } from './telegram.update'
 import { TelegramService } from './telegram.service'
 import { UserModule } from 'src/user/user.module'
+import { OllamaModule } from 'src/ollama/ollama.module'
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UserModule } from 'src/user/user.module'
       },
     }),
     UserModule,
+    OllamaModule,
   ],
   providers: [TelegramUpdate, TelegramService],
 })

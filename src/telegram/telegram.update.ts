@@ -26,6 +26,6 @@ export class TelegramUpdate {
 
   @On('text')
   async onAnyText(@Ctx() ctx: Context, @Message('text') text: string) {
-    await this.telegramService.fallback(ctx, text)
+    await this.telegramService.processMessage(ctx, text)
   }
 }
