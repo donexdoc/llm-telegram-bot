@@ -17,6 +17,13 @@ export class TelegramUpdate {
     await this.telegramService.help(ctx)
   }
 
+  // Новая команда /activate
+  @Command('activate')
+  async onActivate(@Ctx() ctx: Context, @Message('text') text: string) {
+    const secretWord = text.split('/activate ')[1]
+    await this.telegramService.activate(ctx, secretWord)
+  }
+
   @On('text')
   async onAnyText(@Ctx() ctx: Context, @Message('text') text: string) {
     await this.telegramService.fallback(ctx, text)
