@@ -104,7 +104,7 @@ export class TelegramService {
 
       // 1) мгновенный отклик + "печатает..."
       const stopTyping = startTyping()
-      const processingMsg = await ctx.reply('🤖 Обрабатываю ваш запрос…')
+      const processingMsg = await ctx.reply('🤖 Обрабатываю ваш запрос…', { parse_mode: 'Markdown' })
 
       // 2) запрос к LLM
       const response = await this.ollamaService.reply(model, userText)
@@ -120,7 +120,7 @@ export class TelegramService {
           undefined,
           response,
           // если решите включить Markdown, экранируйте спецсимволы:
-          // { parse_mode: 'MarkdownV2' }
+          { parse_mode: 'Markdown' },
         )
       } catch (editErr) {
         this.logger.debug(`editMessageText failed, fallback to reply: ${String(editErr)}`)

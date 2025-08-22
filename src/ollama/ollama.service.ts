@@ -17,6 +17,7 @@ interface OllamaChatResponse {
   created_at: string
   message: OllamaChatMessage
   done: boolean
+  // доп. поля у разных версий Ollama могут отличаться
   [key: string]: unknown
 }
 
@@ -25,55 +26,20 @@ export class OllamaService {
   private readonly baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434'
   private readonly timeoutMs = 60_000
 
-  /** Жёсткое ограничение длины под Telegram (есть запас под форматирование). */
-  private static readonly MAX_CHARS = 3800
-
-  /** «Быстрый» пресет для ускорения и упрощения ответов. */
-  private static readonly FAST_PRESET: OllamaOptions = {
-    // Ограничение генерации
-    num_predict: 260, // максимум токенов ответа
-    num_ctx: 2048, // не раздуваем контекст
-    // Упрощённая/быстрая выборка
-    temperature: 0.7,
-    top_k: 40,
-    top_p: 0.9,
-    repeat_penalty: 1.05,
-    // Ранние остановки (часто завершает на пустой строке/перед новым ходом)
-    stop: ['\n\n', 'User:', 'Пользователь:'],
-  }
-
-  /** Короткая системная инструкция — «пиши проще и короче». */
-  private static readonly SYSTEM_BRIEF: OllamaChatMessage = {
-    role: 'system',
-    content:
-      'Отвечай максимально кратко (до 6–8 предложений), простыми словами, без лишней разметки и прелюдий. ' +
-      'Сначала дай суть, затем 3–5 лаконичных пунктов, если уместно. Не повторяй вопрос.',
-  }
-
   constructor(private readonly http: HttpService) {}
 
   /**
    * Делает один чат-запрос к Ollama и возвращает текст ответа ассистента.
-   * Ограничения:
-   *  - жёсткий быстрый пресет (можно перекрыть частично своим `options`)
-   *  - короткая системная инструкция
-   *  - обрезка под лимит Telegram
+   * Подходит для сценария "получил сообщение из Telegram -> отправил в LLM -> вернул строку".
    */
   async reply(model: string, userText: string, options?: OllamaOptions, signal?: AbortSignal): Promise<string> {
     try {
       const url = `${this.baseUrl}/api/chat`
-
-      // Сливаем опции: сначала быстрый пресет, сверху — пользовательские (если есть)
-      const mergedOptions: OllamaOptions = {
-        ...OllamaService.FAST_PRESET,
-        ...(options ?? {}),
-      }
-
       const body = {
         model,
         stream: false,
-        messages: [OllamaService.SYSTEM_BRIEF, { role: 'user', content: userText } as OllamaChatMessage],
-        options: mergedOptions,
+        messages: [{ role: 'user', content: userText } satisfies OllamaChatMessage],
+        options, // можно прокидывать temperature, num_ctx и т.п.
       }
 
       const res = await lastValueFrom(
@@ -83,18 +49,7 @@ export class OllamaService {
         }),
       )
 
-      let content = (res.data?.message?.content ?? '').trim()
-
-      // Жёстко обрезаем по символам под Telegram
-      if (content.length > OllamaService.MAX_CHARS) {
-        // стараемся не резать слово посередине, если недалеко есть пробел/перевод строки
-        const soft = content.lastIndexOf(' ', OllamaService.MAX_CHARS)
-        const softNl = content.lastIndexOf('\n', OllamaService.MAX_CHARS)
-        const cut = Math.max(soft, softNl)
-        content = content.slice(0, cut > OllamaService.MAX_CHARS * 0.7 ? cut : OllamaService.MAX_CHARS).trimEnd()
-        content += '…'
-      }
-
+      const content = res.data?.message?.content?.trim() ?? ''
       return content
     } catch (err) {
       this.handleAxiosError(err)
