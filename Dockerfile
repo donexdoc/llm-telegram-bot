@@ -15,6 +15,8 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+RUN apk add --no-cache postgresql-client
+
 COPY package*.json ./
 COPY prisma ./prisma
 # ВАЖНО: чтобы migrate работал, пакет "prisma" должен быть доступен в рантайме.
