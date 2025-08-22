@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { OllamaService } from 'src/ollama/ollama.service'
 import { UserService } from 'src/user/user.service'
 import { Context } from 'telegraf'
 
 @Injectable()
 export class TelegramService {
+  private readonly logger = new Logger(TelegramService.name)
+
   constructor(
     private readonly userService: UserService,
     private readonly ollamaService: OllamaService,
@@ -64,6 +66,21 @@ export class TelegramService {
   }
 
   async processMessage(ctx: Context, text: string) {
+    // утилита "печатает..."
+    const startTyping = () => {
+      const chatId = ctx.chat?.id
+      if (!chatId) return () => {}
+      ctx.telegram
+        .sendChatAction(chatId, 'typing')
+        .catch((e) => this.logger.debug(`sendChatAction (init) failed: ${String(e)}`))
+      const timer = setInterval(() => {
+        ctx.telegram
+          .sendChatAction(chatId, 'typing')
+          .catch((e) => this.logger.debug(`sendChatAction (tick) failed: ${String(e)}`))
+      }, 4000)
+      return () => clearInterval(timer)
+    }
+
     try {
       if (!ctx.from?.id) {
         return ctx.reply('Прошу прощения, не могу вас идентифицировать!')
@@ -79,16 +96,48 @@ export class TelegramService {
       }
 
       const model = process.env.OLLAMA_MODEL_NAME || ''
+      if (!model) {
+        return ctx.reply('Конфигурационная ошибка: не задан OLLAMA_MODEL_NAME.')
+      }
+
       const userText = text
 
-      // Вызов OllamaService для получения ответа
+      // 1) мгновенный отклик + "печатает..."
+      const stopTyping = startTyping()
+      const processingMsg = await ctx.reply('🤖 Обрабатываю ваш запрос…')
+
+      // 2) запрос к LLM
       const response = await this.ollamaService.reply(model, userText)
 
-      // Отправка ответного сообщения пользователю
-      await ctx.reply(response, { parse_mode: 'Markdown' })
+      // 3) выключаем "печатает..."
+      stopTyping()
+
+      // 4) обновляем placeholder на финальный ответ
+      try {
+        await ctx.telegram.editMessageText(
+          processingMsg.chat.id,
+          processingMsg.message_id,
+          undefined,
+          response,
+          // если решите включить Markdown, экранируйте спецсимволы:
+          // { parse_mode: 'MarkdownV2' }
+        )
+      } catch (editErr) {
+        this.logger.debug(`editMessageText failed, fallback to reply: ${String(editErr)}`)
+        await ctx.reply(response)
+        try {
+          await ctx.deleteMessage(processingMsg.message_id)
+        } catch (delErr) {
+          this.logger.debug(`deleteMessage (placeholder) failed: ${String(delErr)}`)
+        }
+      }
     } catch (error) {
-      console.error('Error processing message:', error)
-      await ctx.reply('Прошу прощения, произошла ошибка при обработке вашего запроса.')
+      this.logger.error('Error processing message', error)
+      try {
+        await ctx.reply('Прошу прощения, произошла ошибка при обработке вашего запроса.')
+      } catch (notifyErr) {
+        this.logger.debug(`Failed to send error notification: ${String(notifyErr)}`)
+      }
     }
   }
 }
